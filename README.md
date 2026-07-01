@@ -27,4 +27,4 @@ This project implements a privacy-preserving smart contract-based bounty system 
    * Only participants who successfully completed the reveal phase can be selected.
 9. **Reward Payout**: The contract automatically transfers the locked reward funds directly to the winner's wallet address, finalizing the bounty.
 
-   **Build By Kai Dranzer and Qazi Haris**
+**Build By Kai Dranzer and Qazi Haris**
