@@ -174,6 +174,6 @@ export function buildJudgeAllLlmInput({
     1000n, // topP
     "", // user
     false, // piiEnabled
-    ["", ``, ""], // convoHistory
+    ["", "", ""], // convoHistory
   ]);
 }

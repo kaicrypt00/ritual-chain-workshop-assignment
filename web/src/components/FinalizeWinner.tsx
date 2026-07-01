@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePublicClient } from "wagmi";
 import aiJudgeAbi from "@/abi/AIJudge";
 import { contractAddress } from "@/config/contract";
 import { ritualChain } from "@/config/wagmi";
@@ -32,26 +33,61 @@ export function FinalizeWinner({
   isOwner: boolean;
   onFinalized: () => void;
 }) {
-  const count = Number(bounty.submissionCount);
+  const count = Number(bounty.submissionCount); // only *revealed* submissions
   const recommended = decodeAiReview(bounty.aiReview)?.parsed?.winnerIndex;
+  const publicClient = usePublicClient({ chainId: ritualChain.id });
 
-  // The input is prefilled with the AI recommendation until the owner edits it.
-  // `override === null` means "untouched, show the recommendation".
+  // `override === null` means "untouched, show the AI recommendation"
   const [override, setOverride] = useState<string | null>(null);
-  const winnerIndex =
-    override ?? (recommended !== undefined ? String(recommended) : "");
+  const winnerInput = override ?? (recommended !== undefined ? String(recommended) : "");
 
-  const tx = useWriteTx(() => onFinalized());
+  const [revealedIndices, setRevealedIndices] = useState<Set<number> | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [finalizeCompleted, setFinalizeCompleted] = useState(false);
 
-  // Gate per spec: owner only, judged, not finalized.
-  if (!isOwner || !bounty.judged || bounty.finalized) return null;
+  const tx = useWriteTx(() => {
+    setFinalizeCompleted(true);
+    onFinalized();
+  });
 
-  const idxNum = Number(winnerIndex);
-  const valid =
-    winnerIndex !== "" &&
-    Number.isInteger(idxNum) &&
-    idxNum >= 0 &&
-    idxNum < count;
+  // Gate per spec: owner only, judged, not finalized
+  if (!isOwner || !bounty.judged || bounty.finalized || finalizeCompleted) return null;
+
+  const idxNum = Number(winnerInput);
+  const inRange =
+    winnerInput !== "" && Number.isInteger(idxNum) && idxNum >= 0 && idxNum < count;
+
+  // Extra safety: was this index actually revealed?
+  // revealedIndices is populated lazily when the user clicks "Verify"
+  const isConfirmedRevealed = revealedIndices ? revealedIndices.has(idxNum) : null;
+  const valid = inRange && isConfirmedRevealed !== false;
+
+  async function verifyRevealed() {
+    if (!publicClient || !contractAddress || !inRange) return;
+    setChecking(true);
+    try {
+      // getSubmission only returns entries that were revealed; if it doesn't
+      // revert and returns a non-zero submitter, the index was revealed.
+      const res = (await publicClient.readContract({
+        address: contractAddress,
+        abi: aiJudgeAbi,
+        functionName: "getSubmission",
+        args: [bountyId, BigInt(idxNum)],
+      })) as [string, string, `0x${string}`, boolean];
+      const submitter = res?.[0];
+      setRevealedIndices((prev) => {
+        const s = new Set(prev ?? []);
+        if (submitter && !/^0x0+$/.test(submitter)) s.add(idxNum);
+        return s;
+      });
+    } catch {
+      // If getSubmission reverts the index is out of range (shouldn't happen
+      // since we already range-check against count, but be defensive).
+      setRevealedIndices((prev) => new Set(prev ?? []));
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function handleFinalize() {
     if (!valid || !contractAddress) return;
@@ -76,8 +112,8 @@ export function FinalizeWinner({
       />
       <CardBody className="space-y-3">
         <Notice tone="zinc">
-          Only one winner receives the bounty reward (
-          {formatReward(bounty.reward)}).
+          Only one winner receives the bounty reward ({formatReward(bounty.reward)}).
+          You can only pick an index that was <strong>revealed</strong> during Phase 2.
         </Notice>
 
         <Field
@@ -85,27 +121,61 @@ export function FinalizeWinner({
           hint={
             recommended !== undefined
               ? `AI recommends #${recommended}. You decide the final winner.`
-              : `Choose a submission index (0–${Math.max(count - 1, 0)}).`
+              : `Choose a revealed submission index (0–${Math.max(count - 1, 0)}).`
           }
         >
-          <Input
-            type="number"
-            min={0}
-            max={Math.max(count - 1, 0)}
-            value={winnerIndex}
-            onChange={(e) => setOverride(e.target.value)}
-          />
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              min={0}
+              max={Math.max(count - 1, 0)}
+              value={winnerInput}
+              onChange={(e) => {
+                setOverride(e.target.value);
+                // Reset verification when user changes the index
+                setRevealedIndices(null);
+              }}
+            />
+            <Button
+              type="button"
+              onClick={verifyRevealed}
+              disabled={!inRange || checking}
+              className="shrink-0 px-3 text-sm"
+            >
+              {checking ? "Checking…" : "Verify"}
+            </Button>
+          </div>
         </Field>
 
-        {winnerIndex !== "" && !valid && (
+        {winnerInput !== "" && !inRange && (
           <p className="text-xs text-amber-300">
             Index must be between 0 and {Math.max(count - 1, 0)}.
           </p>
         )}
 
+        {inRange && isConfirmedRevealed === false && (
+          <Notice tone="amber">
+            ⚠️ Submission #{idxNum} was <strong>not revealed</strong> during Phase 2 and cannot
+            win. Pick a different index.
+          </Notice>
+        )}
+
+        {inRange && isConfirmedRevealed === true && (
+          <p className="text-xs text-emerald-400">
+            ✅ Submission #{idxNum} was revealed and is eligible.
+          </p>
+        )}
+
+        {inRange && isConfirmedRevealed === null && (
+          <p className="text-xs text-zinc-500">
+            Click <strong>Verify</strong> to confirm this submission was revealed before
+            finalizing.
+          </p>
+        )}
+
         <Button
           onClick={handleFinalize}
-          disabled={!valid || tx.isBusy}
+          disabled={!inRange || isConfirmedRevealed === false || tx.isBusy}
           className="w-full"
         >
           {tx.isBusy ? "Finalizing…" : "Finalize winner"}

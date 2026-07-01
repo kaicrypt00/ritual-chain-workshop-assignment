@@ -1,70 +1,81 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState, useCallback } from "react";
 import { WalletConnect } from "@/components/WalletConnect";
 import { CreateBountyForm } from "@/components/CreateBountyForm";
+import { BountyListPanel } from "@/components/BountyListPanel";
 import { LoadBountyPanel } from "@/components/LoadBountyPanel";
 import { BountyView } from "@/components/BountyView";
-import { useRecentBounties } from "@/hooks/useRecentBounties";
 import { isContractConfigured, contractAddress } from "@/config/contract";
 import { ritualChain } from "@/config/wagmi";
 import { shortenAddress } from "@/lib/format";
 import { Notice } from "@/components/ui";
+import { useRecentBounties } from "@/hooks/useRecentBounties";
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState<bigint | null>(null);
-  const { ids, add } = useRecentBounties();
+  const { ids: recentIds, add: addRecent } = useRecentBounties();
 
-  // Track any opened bounty in the recent list too. `add` is a no-op when the
-  // id is already most-recent, so this won't loop.
-  useEffect(() => {
-    if (selectedId !== null) add(selectedId);
-  }, [selectedId, add]);
+  const handleSelect = useCallback((id: bigint | null) => {
+    setSelectedId(id);
+    if (id !== null) {
+      addRecent(id);
+    }
+  }, [addRecent]);
 
-  const handleCreated = useCallback(
-    (id: bigint) => {
-      add(id);
-      setSelectedId(id);
-    },
-    [add],
-  );
+  const handleCreated = useCallback((id: bigint) => {
+    handleSelect(id);
+  }, [handleSelect]);
 
   return (
     <div className="min-h-full">
       {/* Top nav */}
-      <header className="sticky top-0 z-10 border-b border-white/10 bg-zinc-950/70 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-white/5 bg-black/60 backdrop-blur-xl shadow-lg shadow-black/20">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 to-emerald-400 text-sm font-bold text-zinc-950">
-              AI
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <div className="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-400 opacity-20 blur group-hover:opacity-40 transition duration-300"></div>
+              <img
+                src="/ritual-logo.png"
+                alt="Ritual Logo"
+                className="relative h-8 w-8 rounded-lg object-cover border border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.15)] bg-black"
+              />
             </div>
             <div>
-              <h1 className="text-sm font-semibold leading-tight">AI Bounty Judge</h1>
-              <p className="text-[11px] leading-tight text-zinc-500">on {ritualChain.name}</p>
+              <h1 className="text-sm font-semibold tracking-wider leading-tight text-white uppercase">
+                Ritual Bounty Judge
+              </h1>
+              <p className="text-[10px] font-mono leading-tight text-emerald-400 font-semibold tracking-wider">
+                on {ritualChain.name.toUpperCase()}
+              </p>
             </div>
           </div>
           <WalletConnect />
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        {/* Hero / explanation */}
-        <section className="mb-6">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Crowd-judged bounties, settled by AI.
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        {/* Hero */}
+        <section className="mb-8">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+            Crowd-judged bounties, settled by{" "}
+            <span className="bg-gradient-to-r from-emerald-400 to-emerald-500 bg-clip-text text-transparent">
+              Ritual AI
+            </span>
+            .
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+          <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-zinc-400">
             Submit answers to a bounty. After the deadline, Ritual AI ranks all submissions. The
             bounty owner finalizes the winner.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-400">
-            <span className="rounded-full bg-white/5 px-3 py-1 ring-1 ring-inset ring-white/10">
+          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full bg-emerald-950/20 border border-emerald-500/10 px-3.5 py-1.5 text-emerald-400 font-medium">
               AI review is advisory. The owner finalizes the winner.
             </span>
-            <span className="rounded-full bg-white/5 px-3 py-1 ring-1 ring-inset ring-white/10">
+            <span className="rounded-full bg-emerald-950/20 border border-emerald-500/10 px-3.5 py-1.5 text-emerald-400 font-medium">
               All submissions are judged together after the deadline.
             </span>
-            <span className="rounded-full bg-white/5 px-3 py-1 ring-1 ring-inset ring-white/10">
+            <span className="rounded-full bg-emerald-950/20 border border-emerald-500/10 px-3.5 py-1.5 text-emerald-400 font-medium">
               Only one winner receives the bounty reward.
             </span>
           </div>
@@ -73,21 +84,27 @@ export default function Home() {
         {!isContractConfigured && (
           <div className="mb-6">
             <Notice tone="amber">
-              No contract address configured. Copy <code className="font-mono">.env.example</code>{" "}
-              to <code className="font-mono">.env.local</code> and set{" "}
-              <code className="font-mono">NEXT_PUBLIC_CONTRACT_ADDRESS</code> to start interacting
-              on-chain.
+              No contract address configured. Set{" "}
+              <code className="font-mono">NEXT_PUBLIC_CONTRACT_ADDRESS</code> in{" "}
+              <code className="font-mono">.env.local</code> to enable on-chain interactions.
             </Notice>
           </div>
         )}
 
-        {/* Dashboard: create + load */}
+        {/* Dashboard: create + bounty list */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <CreateBountyForm onCreated={handleCreated} />
-          <LoadBountyPanel selectedId={selectedId} onSelect={setSelectedId} recentIds={ids} />
+          <div className="space-y-4">
+            <LoadBountyPanel
+              selectedId={selectedId}
+              onSelect={handleSelect}
+              recentIds={recentIds}
+            />
+            <BountyListPanel selectedId={selectedId} onSelect={handleSelect} />
+          </div>
         </section>
 
-        {/* Selected bounty */}
+        {/* Selected bounty detail */}
         {selectedId !== null && (
           <section className="mt-6">
             <BountyView bountyId={selectedId} />

@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
+  --background: #050508;
+  --foreground: #f4f4f5;
+  --neon-emerald: #10b981;
 }
 
 @theme inline {
@@ -13,10 +14,74 @@
 }
 
 body {
-  background:
-    radial-gradient(60rem 60rem at 80% -10%, rgba(99, 102, 241, 0.12), transparent 60%),
-    radial-gradient(50rem 50rem at -10% 10%, rgba(16, 185, 129, 0.08), transparent 55%),
-    var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(100rem 100rem at 50% -20rem, rgba(16, 185, 129, 0.16), transparent 70%),
+    radial-gradient(60rem 60rem at 0% 100%, rgba(5, 255, 149, 0.04), transparent 60%),
+    radial-gradient(60rem 60rem at 100% 100%, rgba(16, 185, 129, 0.03), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.003) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.003) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 32px 32px, 32px 32px;
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar for Luxury Experience */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.2);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.4);
+}
+
+/* Luxury card glow effect and micro-animations */
+.luxury-glow {
+  position: relative;
+  overflow: hidden;
+}
+.luxury-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(to bottom right, rgba(16, 185, 129, 0.15), transparent 40%, rgba(16, 185, 129, 0.05));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+/* Button micro-interactions */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.4);
+  }
+}
+
+.glow-active {
+  animation: pulseGlow 2.5s infinite ease-in-out;
 }

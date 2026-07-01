@@ -60,6 +60,7 @@ export function BountyView({ bountyId }: { bountyId: bigint }) {
       <div className="space-y-4">
         <BountyDetail bountyId={bountyId} bounty={bounty} isOwner={isOwner} />
         <SubmitAnswer
+          key={`${bountyId}-${address || "none"}`}
           bountyId={bountyId}
           bounty={bounty}
           onSubmitted={reload}

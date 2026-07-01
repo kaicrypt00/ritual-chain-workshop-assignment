@@ -33,7 +33,13 @@ export const config = createConfig({
   connectors,
   ssr: true,
   transports: {
-    [ritualChain.id]: http(ritualRpcUrl),
+    // Ritual Chain RPC can be slow under load — add retries and a longer
+    // timeout so the app doesn't bail out on the first flaky response.
+    [ritualChain.id]: http(ritualRpcUrl, {
+      retryCount: 5,
+      retryDelay: 2_000,
+      timeout: 30_000,
+    }),
   },
 });
 

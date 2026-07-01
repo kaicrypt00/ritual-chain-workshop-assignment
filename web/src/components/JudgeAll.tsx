@@ -3,13 +3,12 @@
 import { useState } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import aiJudgeAbi from "@/abi/AIJudge";
-import { contractAddress, executorAddress } from "@/config/contract";
+import { contractAddress } from "@/config/contract";
 import { ritualChain } from "@/config/wagmi";
 import type { Bounty } from "@/lib/bounty";
-import { buildJudgeAllLlmInput, type JudgeSubmission } from "@/lib/ritualLlm";
 import { useWriteTx } from "@/hooks/useWriteTx";
-import { useRitualWalletStatus } from "@/hooks/useRitualWalletStatus";
-import { RitualWalletPanel } from "@/components/RitualWalletPanel";
+import { useNow } from "@/hooks/useNow";
+import { formatRelative } from "@/lib/format";
 import { Card, CardHeader, CardBody, Button, TxStatus, Notice, Spinner } from "@/components/ui";
 
 const explorerBase = ritualChain.blockExplorers?.default.url;
@@ -27,49 +26,57 @@ export function JudgeAll({
 }) {
   const { address } = useAccount();
   const publicClient = usePublicClient({ chainId: ritualChain.id });
+  const now = useNow();
+  const nowSeconds = now / 1000;
+
   const [gathering, setGathering] = useState(false);
   const [gatherError, setGatherError] = useState<string | null>(null);
-  const tx = useWriteTx(() => onJudged());
+  const [judgedCompleted, setJudgedCompleted] = useState(false);
 
-  // Preflight the *connected* wallet's RitualWallet funding (not the bounty
-  // contract) — judgeAll spends prepaid+locked RITUAL via the LLM precompile.
-  const walletStatus = useRitualWalletStatus(address);
+  const tx = useWriteTx(() => {
+    setJudgedCompleted(true);
+    onJudged();
+  });
 
-  const count = Number(bounty.submissionCount);
+  const count = Number(bounty.submissionCount); // revealed submissions only
+  const revealSec = Number(bounty.revealDeadline) > 50000000000 ? Number(bounty.revealDeadline) / 1000 : Number(bounty.revealDeadline);
+  const revealDeadlinePassed = nowSeconds >= revealSec;
+  const timeUntilReveal = revealDeadlinePassed
+    ? null
+    : formatRelative(bounty.revealDeadline);
 
-  // Gate per spec: owner only, has submissions, not yet judged.
-  if (!isOwner || bounty.judged || bounty.finalized || count === 0) {
-    return null;
-  }
+  // Gate: owner only, not yet judged/finalized
+  if (!isOwner || bounty.judged || bounty.finalized || judgedCompleted) return null;
 
+  // --- Real Ritual LLM (requires funded RitualWallet + TEE executor) ---
   async function handleJudge() {
-    if (!publicClient || !contractAddress || !walletStatus.ready) return;
+    if (!publicClient || !contractAddress) return;
     setGatherError(null);
     setGathering(true);
     try {
-      // 1–2. Load every submission for this bounty.
-      const submissions: JudgeSubmission[] = [];
+      const { buildJudgeAllLlmInput } = await import("@/lib/ritualLlm");
+      const { executorAddress } = await import("@/config/contract");
+
+      const subs: { index: number; submitter: string; answer: string }[] = [];
       for (let i = 0; i < count; i++) {
-        const [submitter, answer] = await publicClient.readContract({
+        const res = (await publicClient.readContract({
           address: contractAddress,
           abi: aiJudgeAbi,
           functionName: "getSubmission",
           args: [bountyId, BigInt(i)],
-        });
-        submissions.push({ index: i, submitter, answer });
+        })) as [string, string, `0x${string}`, boolean];
+        subs.push({ index: i, submitter: res[0], answer: res[1] });
       }
 
-      // 3–4. Build the batch judging prompt and encode the Ritual LLM request.
       const llmInput = buildJudgeAllLlmInput({
         executorAddress,
         title: bounty.title,
         rubric: bounty.rubric,
-        submissions,
+        submissions: subs,
       });
 
       setGathering(false);
 
-      // 5. Submit it on-chain.
       await tx.run({
         address: contractAddress,
         abi: aiJudgeAbi,
@@ -82,38 +89,78 @@ export function JudgeAll({
       setGatherError(
         (e as { shortMessage?: string; message?: string }).shortMessage ||
           (e as Error).message ||
-          "Failed to gather submissions.",
+          "LLM judging failed. Make sure your RitualWallet is funded and an active TEE executor is available.",
       );
     }
   }
 
   const busy = gathering || tx.isBusy;
-  const fundingReady = walletStatus.ready === true;
 
   return (
     <Card>
       <CardHeader
         title="Judge all submissions"
-        subtitle="Sends one Ritual LLM request ranking every submission."
+        subtitle={
+          revealDeadlinePassed && count > 0
+            ? `${count} revealed answer${count !== 1 ? "s" : ""} ready for judgment`
+            : "Waiting for reveal phase to end"
+        }
       />
       <CardBody className="space-y-3">
-        <Notice tone="indigo">AI review is advisory. The bounty owner finalizes the winner.</Notice>
+        {/* Phase gate: can only judge after reveal deadline */}
+        {!revealDeadlinePassed ? (
+          <>
+            <Notice tone="amber">
+              ⏳ Judging unlocks after the Reveal Phase ends ({timeUntilReveal ?? "soon"}).
+            </Notice>
+            <Button
+              disabled={true}
+              className="w-full"
+            >
+              🤖 Judge via Ritual LLM (Waiting for Reveal Phase)
+            </Button>
+          </>
+        ) : count === 0 ? (
+          <>
+            <Notice tone="amber">
+              No answers were revealed during the reveal phase. Judging requires at least one revealed submission.
+            </Notice>
+            <Button
+              disabled={true}
+              className="w-full"
+            >
+              🤖 Judge via Ritual LLM (No submissions)
+            </Button>
+          </>
+        ) : (
+          <>
+            <Notice tone="green">
+              AI review is advisory. After judging, you (the owner) select the final winner.
+            </Notice>
 
-        <RitualWalletPanel status={walletStatus} onDeposited={walletStatus.refetch} />
+            {/* Submissions summary */}
+            <div className="rounded-xl bg-zinc-950/40 border border-white/5 px-4 py-3 text-sm text-zinc-300">
+              <span className="font-bold text-emerald-400">{count}</span>{" "}
+              revealed answer{count !== 1 ? "s" : ""} ready to judge
+            </div>
 
-        <Button onClick={handleJudge} disabled={busy || !fundingReady} className="w-full">
-          {gathering ? (
-            <>
-              <Spinner /> Gathering {count} submissions…
-            </>
-          ) : tx.isBusy ? (
-            "Judging…"
-          ) : !fundingReady ? (
-            "Fund RitualWallet to judge"
-          ) : (
-            `Judge all (${count})`
-          )}
-        </Button>
+            {/* Primary judging action: Real Ritual LLM */}
+            <Button
+              onClick={handleJudge}
+              disabled={busy}
+              className="w-full"
+            >
+              {gathering ? (
+                <><Spinner /> Gathering {count} submissions…</>
+              ) : tx.isBusy ? (
+                "Calling Ritual LLM…"
+              ) : (
+                `🤖 Judge via Ritual LLM (${count})`
+              )}
+            </Button>
+          </>
+        )}
+
         {gatherError && <Notice tone="red">{gatherError}</Notice>}
         <TxStatus state={tx.state} error={tx.error} hash={tx.hash} explorerBase={explorerBase} />
       </CardBody>

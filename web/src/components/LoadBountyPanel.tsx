@@ -72,10 +72,10 @@ export function LoadBountyPanel({
                     setOverride(null);
                     load(id);
                   }}
-                  className={`rounded-lg px-2 py-1 font-mono text-xs ring-1 ring-inset transition-colors ${
+                  className={`rounded-lg px-2.5 py-1 font-mono text-xs ring-1 ring-inset transition-all duration-300 ${
                     selectedId?.toString() === id
-                      ? "bg-indigo-500/20 text-indigo-200 ring-indigo-500/40"
-                      : "bg-black/20 text-zinc-300 ring-white/10 hover:bg-white/10"
+                      ? "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.1)]"
+                      : "bg-zinc-950/60 text-zinc-400 ring-white/5 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   #{id}

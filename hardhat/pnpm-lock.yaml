@@ -11,9 +11,18 @@ importers:
       '@nomicfoundation/hardhat-ignition':
         specifier: ^3.1.7
         version: 3.1.7(@nomicfoundation/hardhat-verify@3.0.20(hardhat@3.9.0))(hardhat@3.9.0)
+      '@nomicfoundation/hardhat-ignition-viem':
+        specifier: ^3.1.6
+        version: 3.1.6(@nomicfoundation/hardhat-ignition@3.1.7(@nomicfoundation/hardhat-verify@3.0.20(hardhat@3.9.0))(hardhat@3.9.0))(@nomicfoundation/hardhat-verify@3.0.20(hardhat@3.9.0))(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.0)(viem@2.53.1(typescript@6.0.3)(zod@3.25.76)))(@nomicfoundation/ignition-core@3.1.7)(hardhat@3.9.0)(viem@2.53.1(typescript@6.0.3)(zod@3.25.76))
       '@nomicfoundation/hardhat-toolbox-viem':
         specifier: ^5.0.7
         version: 5.0.7(bf34a55f7247a596d08b22509a372869)
+      '@nomicfoundation/hardhat-viem':
+        specifier: ^3.0.9
+        version: 3.0.9(hardhat@3.9.0)(viem@2.53.1(typescript@6.0.3)(zod@3.25.76))
+      '@nomicfoundation/hardhat-viem-assertions':
+        specifier: ^3.1.1
+        version: 3.1.1(@nomicfoundation/hardhat-viem@3.0.9(hardhat@3.9.0)(viem@2.53.1(typescript@6.0.3)(zod@3.25.76)))(hardhat@3.9.0)(viem@2.53.1(typescript@6.0.3)(zod@3.25.76))
       '@types/node':
         specifier: ^22.20.0
         version: 22.20.0
@@ -595,7 +604,7 @@ packages:
     engines: {node: '>=6.0.0'}
 
   forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/1eea5bae12ae557d589f9f0f0edae2faa47cb262:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1eea5bae12ae557d589f9f0f0edae2faa47cb262}
+    resolution: {gitHosted: true, tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/1eea5bae12ae557d589f9f0f0edae2faa47cb262}
     version: 1.9.4
 
   fsevents@2.3.3:

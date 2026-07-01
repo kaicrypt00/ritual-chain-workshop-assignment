@@ -1,6 +1,7 @@
 "use client";
 
-import { useReadContract } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
+import { usePublicClient } from "wagmi";
 import aiJudgeAbi from "@/abi/AIJudge";
 import { contractAddress } from "@/config/contract";
 import { ritualChain } from "@/config/wagmi";
@@ -24,13 +25,15 @@ export function SubmissionsList({
   return (
     <Card>
       <CardHeader
-        title="Submissions"
-        subtitle="All submissions are judged together after the deadline."
-        action={<Badge tone="zinc">{count}</Badge>}
+        title="Revealed submissions"
+        subtitle="Only answers revealed during Phase 2 are eligible for judging."
+        action={<Badge tone="zinc">{count} revealed</Badge>}
       />
       <CardBody className="space-y-3">
         {count === 0 ? (
-          <p className="text-sm text-zinc-500">No submissions yet.</p>
+          <p className="text-sm text-zinc-500">
+            No revealed submissions yet. Participants who committed must reveal during Phase 2.
+          </p>
         ) : (
           indices.map((i) => (
             <SubmissionRow
@@ -61,26 +64,36 @@ function SubmissionRow({
   recommended?: boolean;
   isWinner?: boolean;
 }) {
-  const { data, isLoading } = useReadContract({
-    address: contractAddress,
-    abi: aiJudgeAbi,
-    functionName: "getSubmission",
-    args: [bountyId, BigInt(index)],
-    chainId: ritualChain.id,
-    query: { enabled: !!contractAddress },
+  const publicClient = usePublicClient({ chainId: ritualChain.id });
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["submission", contractAddress, bountyId.toString(), index],
+    queryFn: async () => {
+      if (!contractAddress || !publicClient) return undefined;
+      const res = await publicClient.readContract({
+        address: contractAddress,
+        abi: aiJudgeAbi,
+        functionName: "getSubmission",
+        args: [bountyId, BigInt(index)],
+      });
+      return res as [string, string, `0x${string}`, boolean];
+    },
+    enabled: !!contractAddress && !!publicClient,
+    retry: 2,
   });
 
   const submitter = data?.[0];
   const answer = data?.[1];
+  const revealed = data?.[3];
 
   return (
     <div
-      className={`rounded-xl border p-3 ${
+      className={`rounded-xl border p-4 transition-all duration-300 ${
         isWinner
-          ? "border-emerald-500/40 bg-emerald-500/5"
+          ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
           : recommended
-            ? "border-indigo-500/40 bg-indigo-500/5"
-            : "border-white/10 bg-black/20"
+            ? "border-emerald-500/25 bg-emerald-500/5"
+            : "border-white/5 bg-zinc-950/40 hover:border-white/10"
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -89,11 +102,14 @@ function SubmissionRow({
           <span className="font-mono text-sm text-zinc-300">
             {submitter ? shortenAddress(submitter) : isLoading ? "loading…" : "-"}
           </span>
+          <Badge tone={revealed ? "green" : "amber"}>
+            {revealed ? "Revealed" : "Committed"}
+          </Badge>
         </div>
         <div className="flex items-center gap-1.5">
           {ranking ? <Badge tone="zinc">score {ranking.score}</Badge> : null}
           {isWinner ? (
-            <Badge tone="green">Winner</Badge>
+            <Badge tone="green">Winner 🏆</Badge>
           ) : recommended ? (
             <Badge tone="indigo">AI pick</Badge>
           ) : null}
@@ -101,7 +117,7 @@ function SubmissionRow({
       </div>
 
       <p className="mt-2 whitespace-pre-wrap break-words text-sm text-zinc-200">
-        {answer ?? (isLoading ? "" : "-")}
+        {revealed ? (answer ?? (isLoading ? "Loading…" : "-")) : "Committed — Answer not yet revealed"}
       </p>
 
       {ranking?.reason ? (
