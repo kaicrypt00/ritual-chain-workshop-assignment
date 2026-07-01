@@ -22,10 +22,9 @@ This project implements a privacy-preserving smart contract-based bounty system 
    * The bounty owner triggers `judgeAll`. 
    * The contract gathers all successfully revealed answers and makes a batch call to the Ritual native LLM precompile.
    * The AI reviews all answers concurrently against the rubric, assigns scores, and writes back the ranking and recommendation to the contract.
-
-   ** Build By Kai Dranzer and Qazi Haris **
-   
 8. **Finalize Winner**:
    * The owner reviews the AI's recommendation and calls `finalizeWinner` to select the winning index.
    * Only participants who successfully completed the reveal phase can be selected.
 9. **Reward Payout**: The contract automatically transfers the locked reward funds directly to the winner's wallet address, finalizing the bounty.
+
+   **Build By Kai Dranzer and Qazi Haris**
